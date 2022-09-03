@@ -1,0 +1,120 @@
+package main
+
+import (
+	"fmt"
+	"net/http"
+
+	"errors"
+
+	"github.com/gin-gonic/gin"
+)
+
+// BOOK STRUCT
+type book struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Author   string `json:"author"`
+	Quantity int    `json:"quantity"`
+}
+
+// BOOKS ARRAY
+var books = []book{
+	{ID: "1", Title: "In Search of Lost Time", Author: "Marcel Proust", Quantity: 2},
+	{ID: "2", Title: "The Great Gatsby", Author: "F. Scott Fitzgerald", Quantity: 5},
+	{ID: "3", Title: "War and Peace", Author: "Leo Tolstoy", Quantity: 6},
+}
+
+// FUNCTIONS
+func getBooks(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, books)
+}
+
+func bookByID(c *gin.Context) {
+	id := c.Param("id")
+	book, err := getBookByID(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found!"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, book)
+}
+
+func getBookByID(id string) (*book, error) {
+	for i, b := range books {
+		if b.ID == id {
+			return &books[i], nil
+		}
+	}
+
+	return nil, errors.New("Book not found")
+}
+
+func createBook(c *gin.Context) {
+	var newBook book
+
+	if err := c.BindJSON(&newBook); err != nil {
+		return
+	}
+
+	books = append(books, newBook)
+	c.IndentedJSON(http.StatusCreated, newBook)
+}
+
+func checkoutBook(c *gin.Context) {
+	id, ok := c.GetQuery("id")
+
+	if !ok {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query paramter. "})
+	}
+
+	book, err := getBookByID(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found."})
+		return
+	}
+
+	if book.Quantity <= 0 {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Book not available."})
+		return
+	}
+
+	book.Quantity -= 1
+	c.IndentedJSON(http.StatusOK, book)
+}
+
+func returnBook(c *gin.Context) {
+	id, ok := c.GetQuery("id")
+
+	if !ok {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Missing id query paramter. "})
+	}
+
+	book, err := getBookByID(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found."})
+		return
+	}
+
+	book.Quantity += 1
+	c.IndentedJSON(http.StatusOK, book)
+}
+
+func main() {
+	http.HandleFunc("/", handler)
+	router := gin.Default()
+	router.GET("/books", getBooks)
+	router.GET("/books/:id", bookByID)
+	router.POST("/books", createBook)
+	router.PATCH("/checkout", checkoutBook)
+	router.PATCH("/return", returnBook)
+	//http.ListenAndServe(":8080", nil)
+	router.Run("localhost:8080")
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello, World!")
+}
